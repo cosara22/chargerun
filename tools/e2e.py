@@ -105,7 +105,8 @@ with sync_playwright() as p:
         q = urllib.parse.parse_qs(u.query)
         text = q.get("text", [""])[0]
         check("リンク先が x.com/intent/post", u.netloc == "x.com" and u.path == "/intent/post", href[:80])
-        check("本文にクリアタイム", f"クリアタイム {st['clearMs'] / 1000:.1f}秒" in text, text.replace("\n", " / "))
+        check("本文に到達タイムと挑戦の一文",
+              f"60点到達 {st['clearMs'] / 1000:.1f}秒" in text and "何秒で届く" in text, text.replace("\n", " / "))
         check("本文にハッシュタグ", "#チャージラン" in text)
         check("url パラメータが公開 URL", q.get("url", [""])[0] == "https://cosara22.github.io/chargerun/")
         check("新しいタブで開く", page.locator("#post-x").get_attribute("target") == "_blank")

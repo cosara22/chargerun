@@ -141,11 +141,17 @@ function intentUrl(lines) {
   return `https://x.com/intent/post?${params.toString()}`;
 }
 
-/** クリア時のポスト本文。 */
+/**
+ * クリア時のポスト本文。競うのは目標点に届くまでのタイムなので、タイムを主役にして
+ * 「何秒で届く？」と挑戦を投げる。呼ぶ前に bestClearMs はこの回の結果を反映済み。
+ */
 function clearLines(s) {
+  const goal = config.clearScore;
+  const isBest = s.clearMs === bestClearMs;
   return [
-    `チャージ・ランをクリア！`,
-    `クリアタイム ${formatSec(s.clearMs)}秒 / RUSH ${s.rushCount}回 / スコア ${s.score}`,
+    `チャージ・ランで ${goal}点到達 ${formatSec(s.clearMs)}秒！` + (isBest ? '(自己ベスト)' : ''),
+    `RUSH ${s.rushCount}回 / スコア ${s.score}`,
+    `あなたは何秒で届く？`,
     `#${HASHTAG}`,
   ];
 }
@@ -182,7 +188,7 @@ function showResult(s) {
     resultPanel.dataset.kind = 'clear';
     resultLabel.textContent = 'CLEAR!';
     resultSummary.textContent =
-      `クリアタイム ${formatSec(s.clearMs)} 秒 / RUSH ${s.rushCount} 回 / スコア ${s.score}` +
+      `${goal} 点到達 ${formatSec(s.clearMs)} 秒 / RUSH ${s.rushCount} 回 / スコア ${s.score}` +
       (s.clearMs === bestClearMs ? '(自己ベスト)' : `(自己ベスト ${formatSec(bestClearMs)} 秒)`);
     postLink.href = intentUrl(clearLines(s));
   } else {

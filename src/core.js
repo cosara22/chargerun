@@ -52,7 +52,7 @@ export const GAUGE_MAX = 9;
 export const BREAK_SCORE = 50;
 
 /** クリアに要るスコア。値の根拠は tools/calibrate.mjs の実測 (README 参照)。 */
-export const CLEAR_SCORE = 2000;
+export const CLEAR_SCORE = 1000;
 
 export const MAX_OBSTACLES = 8;
 export const BURST_MS = 180;

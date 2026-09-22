@@ -37,7 +37,7 @@ async () => {
   s.charging = true;
   s.chargeRate = 1.45;
   s.gauge = 7;
-  s.score = 1480;
+  s.score = 740;
   s.animMs = 1234;
   s.scroll = 10;
   s.obstacles = [
@@ -48,6 +48,7 @@ async () => {
   ];
   const small = document.createElement('canvas');
   small.width = core.SCREEN_W; small.height = core.SCREEN_H;
+  s.runStartMs = s.animMs - 17400;  // HUD の TIME を 17.4 秒に見せる
   render(small.getContext('2d'), s, { clearScore: core.CLEAR_SCORE });
 
   const big = document.createElement('canvas');
@@ -64,7 +65,7 @@ async () => {
   g.fillText('CHARGE RUN', 40, 625);
   g.font = 'bold 34px "Yu Gothic UI", "Meiryo", sans-serif';
   g.fillStyle = '#ebebf0';
-  const sub = '1キーの避けゲー / 2000点でクリア';
+  const sub = '1キーの避けゲー / 1000点まで何秒？';
   const w = g.measureText(sub).width;
   g.fillText(sub, 1160 - w, 627);
   return big.toDataURL('image/png');

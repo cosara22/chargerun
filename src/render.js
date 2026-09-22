@@ -45,7 +45,14 @@ export function formatSec(ms) {
   return (ms / 1000).toFixed(1);
 }
 
-function drawScene(ctx, s, clearScore) {
+/** 走行中の経過時間 (ms)。走り終えた後はその回の記録で止める。 */
+export function elapsedMs(s) {
+  if (s.phase === 'playing') return s.animMs - s.runStartMs;
+  if (s.phase === 'title') return 0;
+  return s.runMs;
+}
+
+function drawScene(ctx, s, clearScore, bestClearMs) {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
 
@@ -120,8 +127,10 @@ function drawScene(ctx, s, clearScore) {
   ctx.font = `8px ${MONO}`;
   ctx.textBaseline = 'top';
   ctx.fillStyle = COL.text;
-  ctx.fillText(`SCORE ${s.score}`, 14, 3);
-  ctx.fillText(`GOAL ${clearScore}`, SCREEN_W - 62, 3);
+  // 競うのは「目標点に届くまでのタイム」なので、経過タイムを常に出し、自己ベストを並べる
+  ctx.fillText(`SCORE ${s.score}/${clearScore}`, 14, 3);
+  const timeText = `TIME ${formatSec(elapsedMs(s))}` + (bestClearMs > 0 ? `  BEST ${formatSec(bestClearMs)}` : '');
+  ctx.fillText(timeText, SCREEN_W - 8 - Math.ceil(ctx.measureText(timeText).width), 3);
 
   // 目標点までの進捗バー (Web 版で追加)。スコアの横に細く引き、読まずに残りが分かるようにする
   const barX = 14;
@@ -174,16 +183,24 @@ function center(ctx, text, y) {
 
 function drawOverlay(ctx, s, clearScore, bestClearMs) {
   if (s.phase === 'title') {
-    panel(ctx, 20, 38, SCREEN_W - 40, 60, COL.bandOn);
+    panel(ctx, 20, 34, SCREEN_W - 40, 68, COL.bandOn);
     ctx.fillStyle = COL.bandOn;
     ctx.font = `bold 16px ${MONO}`;
-    center(ctx, 'CHARGE RUN', 44);
+    center(ctx, 'CHARGE RUN', 40);
     ctx.font = `8px ${MONO}`;
     ctx.fillStyle = '#c8c8d2';
-    center(ctx, 'tap: small jump / hold: big jump', 64);
-    center(ctx, `reach ${clearScore} pts to CLEAR`, 75);
+    center(ctx, 'tap: small jump / hold: big jump', 59);
+    center(ctx, `reach ${clearScore} pts as fast as you can`, 69);
+    // 自己ベストを出して「前回の自分」を目標にさせる。記録が無ければ出さない
+    if (bestClearMs > 0 || s.best > 0) {
+      ctx.fillStyle = COL.clear;
+      const parts = [];
+      if (bestClearMs > 0) parts.push(`BEST TIME ${formatSec(bestClearMs)}s`);
+      if (s.best > 0) parts.push(`BEST ${s.best} pts`);
+      center(ctx, parts.join('   '), 79);
+    }
     ctx.fillStyle = COL.bandOn;
-    center(ctx, 'press any key / tap to start', 86);
+    center(ctx, 'press any key / tap to start', 90);
   } else if (s.phase === 'over') {
     // ミスを「失敗」でなく「ここまで走った記録」として見せる (赤は使わない)。
     // 見出しは記録の良さで選び、0 点でも走った秒数という数字が残るようにする
@@ -210,7 +227,11 @@ function drawOverlay(ctx, s, clearScore, bestClearMs) {
 
     ctx.fillStyle = '#a0a0aa';
     // 記録がまだ無い (best 0) 回は BEST を出さない。「BEST 0」はさびしく見える
-    center(ctx, s.newBest || s.best === 0 ? `GOAL ${clearScore}` : `BEST ${s.best} / GOAL ${clearScore}`, 76);
+    const bestParts = [];
+    if (!s.newBest && s.best > 0) bestParts.push(`BEST ${s.best}`);
+    if (bestClearMs > 0) bestParts.push(`BEST TIME ${formatSec(bestClearMs)}s`);
+    bestParts.push(`GOAL ${clearScore}`);
+    center(ctx, bestParts.join(' / '), 76);
     ctx.fillStyle = COL.bandOn;
     center(ctx, 'post to X below / key to retry', 87);
   } else if (s.phase === 'clear') {
@@ -247,7 +268,7 @@ export function render(ctx, s, { clearScore, bestClearMs = 0 }) {
       Math.round((Math.random() * 2 - 1) * amp),
     );
   }
-  drawScene(ctx, s, clearScore);
+  drawScene(ctx, s, clearScore, bestClearMs);
   drawOverlay(ctx, s, clearScore, bestClearMs);
   ctx.restore();
 }
