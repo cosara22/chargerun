@@ -79,20 +79,25 @@
       cursor: pointer;
     }
     #mute:hover { border-color: rgba(255, 255, 255, 0.6); }
-    #clear-panel {
+    #result-panel {
+      --accent: var(--band);
       margin-top: 12px;
       padding: 14px 16px;
-      border: 1px solid var(--clear);
-      background: #0e0e08;
+      border: 1px solid var(--accent);
+      background: #0a0e10;
       display: flex;
       flex-wrap: wrap;
       gap: 10px 16px;
       align-items: center;
       justify-content: space-between;
     }
-    #clear-panel[hidden] { display: none; }
-    #clear-panel p { margin: 0; font-size: 14px; }
-    #clear-panel strong { color: var(--clear); font-family: var(--mono); letter-spacing: 0.06em; margin-right: 8px; }
+    /* 記録の種類で色を変える。ミスでも赤は使わない (失敗でなく記録として見せる) */
+    #result-panel[data-kind="clear"],
+    #result-panel[data-kind="best"] { --accent: var(--clear); background: #0e0e08; }
+    #result-panel[data-kind="close"] { --accent: #78f5ff; }
+    #result-panel[hidden] { display: none; }
+    #result-panel p { margin: 0; font-size: 14px; }
+    #result-panel strong { color: var(--accent); font-family: var(--mono); letter-spacing: 0.06em; margin-right: 8px; }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; }
     .btn {
       display: inline-flex;
@@ -134,8 +139,8 @@
       <button id="mute" type="button" aria-pressed="false">SOUND ON</button>
     </div>
 
-    <section id="clear-panel" hidden aria-live="polite">
-      <p><strong>CLEAR!</strong><span id="clear-summary"></span></p>
+    <section id="result-panel" hidden aria-live="polite">
+      <p><strong id="result-label">CLEAR!</strong><span id="result-summary"></span></p>
       <div class="actions">
         <a id="post-x" class="btn btn-x" href="https://x.com/intent/post" target="_blank" rel="noopener noreferrer">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
@@ -149,7 +154,7 @@
       <li><b>操作</b> — どのキーでも / 画面タップでも。短く押すと小ジャンプ、長押しで大ジャンプ。</li>
       <li><b>充電帯</b> — 空中の水色の帯に居る間だけ点が入り、ゲージが溜まる。上ほど速く溜まるが、ドローンも上ほど多い。</li>
       <li><b>RUSH</b> — ゲージ満タンで無敵。ぶつかった障害物を壊して +50 点。</li>
-      <li><b>クリア</b> — <span id="goal">2000</span> 点に届いたらクリア。クリアタイムを X でポストできる。</li>
+      <li><b>クリア</b> — <span id="goal">2000</span> 点に届いたらクリア。届かなくても、走るたびに記録を X でポストできる。</li>
     </ul>
   </main>
   <footer>M5Stack Cardputer ADV 向けに作ったゲームの Web 版</footer>

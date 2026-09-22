@@ -1,8 +1,8 @@
 # チャージ・ラン (Web 版)
 
 押すだけで跳ぶ 1 キーの避けゲー。空中の「充電帯」に居る間だけ点が入り、ゲージが溜まる。
-ゲージ満タンで無敵 (RUSH) になり、障害物を壊して稼げる。**2000 点でクリア**で、
-クリアするとクリアタイムを X にポストできる。
+ゲージ満タンで無敵 (RUSH) になり、障害物を壊して稼げる。**2000 点でクリア**。
+クリアしてもミスしても、その回の記録を X にポストできる。
 
 - 公開 URL: https://cosara22.github.io/chargerun/
 - 元は M5Stack Cardputer ADV 向けに作ったゲーム (`Projects/dev/cardputer-chargerun`)。
@@ -23,6 +23,7 @@
 | 終わり方 | ミスするまで続く | 目標点 `CLEAR_SCORE` (2000) に届いたらクリア |
 | HUD | SCORE / BEST | SCORE / GOAL と目標までの進捗バー |
 | クリア後 | — | クリアタイム・RUSH 回数を表示し、X の投稿画面 (Web Intent) へのリンクを出す |
+| ミス時 | 赤い `CRASH`・130Hz 300ms の低いブザー | 失敗でなく「記録」として見せる。見出しは `NEW BEST!` / `SO CLOSE!`(目標の 75% 以上)/ `NICE RUN`、赤は使わない。走った秒数と目標までの進捗バー(自己ベストに印)。音は短い衝突音+上がり調のチャイム。**ミスでも X にポストできる**(本文は記録+「ゴールは2000点。あなたは届く？」) |
 | 記録 | NVS | localStorage (`chargerun.best` / `chargerun.bestClearMs`) |
 
 X へのポストは `https://x.com/intent/post?text=…&url=…` を新しいタブで開くだけで、
@@ -58,7 +59,7 @@ bot は人より強いので、31.9 秒は下限として読む。最高速 (開
 ## 確認
 
 ```powershell
-python tools/e2e.py      # Playwright で E2E (19 項目)。スクショは tools/out/
+python tools/e2e.py      # Playwright で E2E (25 項目)。スクショは tools/out/
 node tools/calibrate.mjs # 目標点の実測
 ```
 

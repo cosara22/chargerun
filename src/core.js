@@ -121,6 +121,8 @@ export function createState(best = 0) {
     firstRushMs: 0,
     /** クリアまでにかかった時間 (ms)。クリアしていなければ 0。 */
     clearMs: 0,
+    /** 走行が終わるまでに走った時間 (ms)。ミスでもクリアでも入る (結果画面とポストに使う)。 */
+    runMs: 0,
   };
 }
 
@@ -354,6 +356,7 @@ export function step(s, input, dtMs, config = DEFAULT_CONFIG) {
 
     s.phase = 'over';
     s.overAtMs = s.animMs;
+    s.runMs = s.animMs - s.runStartMs;
     s.charging = false;
     s.shakeMs = 320;
     if (s.score > s.best) {
@@ -369,6 +372,7 @@ export function step(s, input, dtMs, config = DEFAULT_CONFIG) {
     s.phase = 'clear';
     s.overAtMs = s.animMs;
     s.clearMs = s.animMs - s.runStartMs;
+    s.runMs = s.clearMs;
     s.charging = false;
     s.invincible = false;
     s.shakeMs = 220;

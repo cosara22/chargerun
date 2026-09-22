@@ -23,6 +23,18 @@ const CLEAR_JINGLE = [
   [2093, 330, 380],
 ];
 
+/** ミス後の結果チャイム。[周波数, 開始ms, 長さms] */
+const RESULT_CHIME = [
+  [784, 160, 90],
+  [1047, 250, 160],
+];
+/** 自己ベスト更新時は 1 音足して高く抜ける。 */
+const BEST_CHIME = [
+  [1047, 160, 90],
+  [1319, 250, 90],
+  [1568, 340, 220],
+];
+
 export class GameAudio {
   constructor() {
     this.ctx = null;
@@ -104,9 +116,12 @@ export class GameAudio {
           this.tone(2637, 50, GAIN.cue);
           break;
         case 'crash':
-          this.tone(130, 300, GAIN.sfx);
-          // 被弾音に高音を重ねる。失敗の音だけで終わらせない
-          if (e.newBest) this.tone(1568, 140, GAIN.cue);
+          // 当たった手応えは短い衝突音だけにし、続けて上がり調のチャイムで「記録が出た」を伝える。
+          // (実機の 130Hz・300ms の低いブザーは失敗感が強いので Web 版では使わない)
+          this.tone(196, 70, GAIN.sfx);
+          for (const [f, at, ms] of e.newBest ? BEST_CHIME : RESULT_CHIME) {
+            this.tone(f, ms, GAIN.cue, at);
+          }
           break;
         case 'clear':
           for (const [f, at, ms] of CLEAR_JINGLE) {

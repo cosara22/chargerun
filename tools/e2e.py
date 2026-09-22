@@ -7,6 +7,7 @@
   1. タイトル → 開始 → 充電帯で加点 → クリアで X ポストのパネルが出る
   2. ポストのリンク先が x.com/intent/post で、本文にクリアタイム・URL・ハッシュタグが入る
   3. クリア直後 (CLEAR_LOCK_MS 以内) のキーでは再開しない / 過ぎれば再開してパネルが消える
+  3b. ミスでも結果パネルとポストが出る (見出しは CRASH でない・本文は記録+挑戦の一文)。即再開は保つ
   4. スマホ幅でタップ操作でも開始・ジャンプできる
   5. 公開先相当 (localhost 以外) では ?goal が効かない … これはホスト名依存なので本番で目視
 """
@@ -74,7 +75,7 @@ with sync_playwright() as p:
     page.goto(BASE + "?goal=60")
     page.wait_for_timeout(300)
     page.screenshot(path=str(OUT / "01-title.png"))
-    check("タイトル表示でクリアパネルは隠れている", page.locator("#clear-panel").is_hidden())
+    check("タイトル表示でクリアパネルは隠れている", page.locator("#result-panel").is_hidden())
     check("目標点の表示が ?goal を反映", page.locator("#goal").inner_text() == "60")
 
     page.locator("#game").focus()
@@ -98,7 +99,7 @@ with sync_playwright() as p:
     if st["phase"] == "clear":
         page.wait_for_timeout(150)
         page.screenshot(path=str(OUT / "02-clear.png"))
-        check("クリアでポストパネルが出る", page.locator("#clear-panel").is_visible())
+        check("クリアでポストパネルが出る", page.locator("#result-panel").is_visible())
         href = page.locator("#post-x").get_attribute("href") or ""
         u = urllib.parse.urlparse(href)
         q = urllib.parse.parse_qs(u.query)
@@ -108,7 +109,7 @@ with sync_playwright() as p:
         check("本文にハッシュタグ", "#チャージラン" in text)
         check("url パラメータが公開 URL", q.get("url", [""])[0] == "https://cosara22.github.io/chargerun/")
         check("新しいタブで開く", page.locator("#post-x").get_attribute("target") == "_blank")
-        check("クリア画面の要約に自己ベスト表記", "自己ベスト" in page.locator("#clear-summary").inner_text())
+        check("クリア画面の要約に自己ベスト表記", "自己ベスト" in page.locator("#result-summary").inner_text())
 
         # クリア直後の誤爆防止
         page.locator("#game").focus()
@@ -119,9 +120,41 @@ with sync_playwright() as p:
         page.keyboard.press("Space")
         page.wait_for_timeout(100)
         check("ロック後のキーで再開しパネルが消える",
-              state(page)["phase"] == "playing" and page.locator("#clear-panel").is_hidden(), str(state(page)))
+              state(page)["phase"] == "playing" and page.locator("#result-panel").is_hidden(), str(state(page)))
         best_clear = page.evaluate("() => localStorage.getItem('chargerun.bestClearMs')")
         check("ベストタイムを保存", best_clear is not None and float(best_clear) > 0, str(best_clear))
+    page.close()
+
+    # --- ミス時: 失敗感を出さず、記録として X にポストできる ---
+    page = browser.new_page(viewport={"width": 1280, "height": 900})
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.goto(BASE + "?goal=100000")  # 届かない目標にしてミスで終わらせる
+    page.wait_for_timeout(300)
+    page.locator("#game").focus()
+    page.keyboard.press("Space")
+    # 押さずに放置すれば最初の柱に当たる
+    for _ in range(60):
+        page.wait_for_timeout(200)
+        if state(page)["phase"] == "over":
+            break
+    st = state(page)
+    check("放置でミスになる", st["phase"] == "over", str(st))
+    page.wait_for_timeout(200)
+    page.screenshot(path=str(OUT / "05-over.png"))
+    check("ミスでも結果パネルとポストボタンが出る",
+          page.locator("#result-panel").is_visible() and page.locator("#post-x").is_visible())
+    label = page.locator("#result-label").inner_text()
+    check("見出しが CRASH でない", label in ("NEW BEST!", "SO CLOSE!", "NICE RUN"), label)
+    href = page.locator("#post-x").get_attribute("href") or ""
+    text = urllib.parse.parse_qs(urllib.parse.urlparse(href).query).get("text", [""])[0]
+    check("ミスのポスト本文に走った秒数と挑戦の一文", "秒 走って" in text and "あなたは届く？" in text,
+          text.replace("\n", " / "))
+    check("ミスのポスト本文にハッシュタグ", "#チャージラン" in text)
+    page.wait_for_timeout(400)
+    page.keyboard.press("Space")
+    page.wait_for_timeout(100)
+    check("ミス後もキーで即再開しパネルが消える",
+          state(page)["phase"] == "playing" and page.locator("#result-panel").is_hidden(), str(state(page)))
     page.close()
 
     # --- スマホ: タップ ---

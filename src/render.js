@@ -147,6 +147,16 @@ function drawScene(ctx, s, clearScore) {
   }
 }
 
+/** 目標の 75% 以上で「あと少し」扱いにする。 */
+export const SO_CLOSE_RATIO = 0.75;
+
+/** ミス画面の見出しと色。自己ベスト更新 > あと少し > それ以外、の順に良い言葉を選ぶ。 */
+export function overHeadline(s, clearScore) {
+  if (s.newBest) return { text: 'NEW BEST!', color: COL.clear };
+  if (s.score >= clearScore * SO_CLOSE_RATIO) return { text: 'SO CLOSE!', color: COL.gaugeHot };
+  return { text: 'NICE RUN', color: COL.bandOn };
+}
+
 /** 枠付きの小窓を描く。 */
 function panel(ctx, x, y, w, h, accent) {
   ctx.fillStyle = '#0a0a0e';
@@ -175,16 +185,34 @@ function drawOverlay(ctx, s, clearScore, bestClearMs) {
     ctx.fillStyle = COL.bandOn;
     center(ctx, 'press any key / tap to start', 86);
   } else if (s.phase === 'over') {
-    // ベストを更新した回は、失敗より先に更新を伝える
-    const accent = s.newBest ? COL.bandOn : COL.drone;
-    panel(ctx, 30, 44, SCREEN_W - 60, 48, accent);
-    ctx.fillStyle = accent;
+    // ミスを「失敗」でなく「ここまで走った記録」として見せる (赤は使わない)。
+    // 見出しは記録の良さで選び、0 点でも走った秒数という数字が残るようにする
+    const head = overHeadline(s, clearScore);
+    panel(ctx, 24, 32, SCREEN_W - 48, 66, head.color);
+    ctx.fillStyle = head.color;
     ctx.font = `bold 16px ${MONO}`;
-    center(ctx, s.newBest ? 'NEW BEST' : 'CRASH', 50);
+    center(ctx, head.text, 38);
     ctx.font = `8px ${MONO}`;
     ctx.fillStyle = '#dcdce4';
-    center(ctx, `SCORE ${s.score} / ${clearScore}   BEST ${s.best}`, 72);
-    center(ctx, 'any key to retry', 83);
+    center(ctx, `${s.score} pts   ${formatSec(s.runMs)}s run`, 57);
+
+    // 目標までの進捗バー。自己ベストの位置に印を立て、「あと少し」を目で見せる
+    const bx = 44;
+    const bw = SCREEN_W - 88;
+    ctx.fillStyle = COL.gaugeOff;
+    ctx.fillRect(bx, 69, bw, 3);
+    ctx.fillStyle = head.color;
+    ctx.fillRect(bx, 69, Math.round(bw * Math.min(1, s.score / clearScore)), 3);
+    if (!s.newBest && s.best > 0) {
+      ctx.fillStyle = COL.clear;
+      ctx.fillRect(bx + Math.round(bw * Math.min(1, s.best / clearScore)), 67, 1, 7);
+    }
+
+    ctx.fillStyle = '#a0a0aa';
+    // 記録がまだ無い (best 0) 回は BEST を出さない。「BEST 0」はさびしく見える
+    center(ctx, s.newBest || s.best === 0 ? `GOAL ${clearScore}` : `BEST ${s.best} / GOAL ${clearScore}`, 76);
+    ctx.fillStyle = COL.bandOn;
+    center(ctx, 'post to X below / key to retry', 87);
   } else if (s.phase === 'clear') {
     const accent = rushColor(s, 0);
     panel(ctx, 24, 32, SCREEN_W - 48, 66, accent);

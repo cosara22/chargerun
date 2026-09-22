@@ -2,7 +2,7 @@
  * チャージ・ラン Web 版 — ページ側 (canvas・入力・ループ・記録・X ポスト)。
  *
  * ゲームの中身は core.js、描画は render.js、音は audio.js。
- * ここはそれらをつなぎ、クリアしたときに X の投稿画面 (Web Intent) への導線を出す。
+ * ここはそれらをつなぎ、走行が終わるたび (クリアでもミスでも) X の投稿画面 (Web Intent) への導線を出す。
  */
 import { GameAudio } from './audio.js';
 import {
@@ -14,7 +14,7 @@ import {
   startRun,
   step,
 } from './core.js';
-import { formatSec, render } from './render.js';
+import { SO_CLOSE_RATIO, formatSec, overHeadline, render } from './render.js';
 
 const FRAME_MS = 16;
 /** ポストに載せる URL。ローカルで試したときも公開 URL を載せる。 */
@@ -32,8 +32,9 @@ const config = {
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const clearPanel = document.getElementById('clear-panel');
-const clearSummary = document.getElementById('clear-summary');
+const resultPanel = document.getElementById('result-panel');
+const resultLabel = document.getElementById('result-label');
+const resultSummary = document.getElementById('result-summary');
 const postLink = document.getElementById('post-x');
 const retryButton = document.getElementById('retry');
 const muteButton = document.getElementById('mute');
@@ -131,30 +132,71 @@ retryButton.addEventListener('click', () => {
 
 function restart() {
   state = startRun(state);
-  clearPanel.hidden = true;
+  resultPanel.hidden = true;
 }
 
-// --- クリア時の X ポスト ---
-function buildPostUrl(s) {
-  const lines = [
-    `チャージ・ランをクリア！`,
-    `クリアタイム ${formatSec(s.clearMs)}秒 / RUSH ${s.rushCount}回 / スコア ${s.score}`,
-    `#${HASHTAG}`,
-  ];
+// --- 結果パネルと X ポスト (クリアでもミスでも出す) ---
+function intentUrl(lines) {
   const params = new URLSearchParams({ text: lines.join('\n'), url: SITE_URL });
   return `https://x.com/intent/post?${params.toString()}`;
 }
 
-function onClear(s) {
-  if (bestClearMs === 0 || s.clearMs < bestClearMs) {
-    bestClearMs = s.clearMs;
-    writeValue(KEY.bestClear, bestClearMs);
+/** クリア時のポスト本文。 */
+function clearLines(s) {
+  return [
+    `チャージ・ランをクリア！`,
+    `クリアタイム ${formatSec(s.clearMs)}秒 / RUSH ${s.rushCount}回 / スコア ${s.score}`,
+    `#${HASHTAG}`,
+  ];
+}
+
+/**
+ * ミス時のポスト本文。失敗の報告ではなく「記録の自慢+挑戦状」にする。
+ * 0 点でも走った秒数は必ず載るので、言えることが何もない回は無い。
+ */
+function overLines(s) {
+  const goal = config.clearScore;
+  const rest = goal - s.score;
+  const close = s.score >= goal * SO_CLOSE_RATIO;
+  // 0 点の回は点を見出しにせず、走った秒数を主役にする (「0点！」は失敗の報告に読める)
+  const head = s.newBest
+    ? `チャージ・ランで自己ベスト ${s.score}点！`
+    : s.score > 0
+      ? `チャージ・ランで ${s.score}点！`
+      : `チャージ・ランを ${formatSec(s.runMs)}秒 走った！`;
+  return [
+    head,
+    `${formatSec(s.runMs)}秒 走って RUSH ${s.rushCount}回` + (close ? ` / ゴールまであと${rest}点` : ''),
+    `ゴールは${goal}点。あなたは届く？`,
+    `#${HASHTAG}`,
+  ];
+}
+
+function showResult(s) {
+  const goal = config.clearScore;
+  if (s.phase === 'clear') {
+    if (bestClearMs === 0 || s.clearMs < bestClearMs) {
+      bestClearMs = s.clearMs;
+      writeValue(KEY.bestClear, bestClearMs);
+    }
+    resultPanel.dataset.kind = 'clear';
+    resultLabel.textContent = 'CLEAR!';
+    resultSummary.textContent =
+      `クリアタイム ${formatSec(s.clearMs)} 秒 / RUSH ${s.rushCount} 回 / スコア ${s.score}` +
+      (s.clearMs === bestClearMs ? '(自己ベスト)' : `(自己ベスト ${formatSec(bestClearMs)} 秒)`);
+    postLink.href = intentUrl(clearLines(s));
+  } else {
+    const head = overHeadline(s, goal);
+    const close = s.score >= goal * SO_CLOSE_RATIO;
+    resultPanel.dataset.kind = s.newBest ? 'best' : close ? 'close' : 'run';
+    resultLabel.textContent = head.text;
+    resultSummary.textContent =
+      `${s.score} 点 / ${formatSec(s.runMs)} 秒 / RUSH ${s.rushCount} 回` +
+      (close ? ` — ゴールまであと ${goal - s.score} 点` : '') +
+      (s.newBest ? '(自己ベスト更新)' : s.best > 0 ? `(自己ベスト ${s.best} 点)` : '');
+    postLink.href = intentUrl(overLines(s));
   }
-  clearSummary.textContent =
-    `クリアタイム ${formatSec(s.clearMs)} 秒 / RUSH ${s.rushCount} 回 / スコア ${s.score}` +
-    (s.clearMs === bestClearMs ? '(自己ベスト)' : `(自己ベスト ${formatSec(bestClearMs)} 秒)`);
-  postLink.href = buildPostUrl(s);
-  clearPanel.hidden = false;
+  resultPanel.hidden = false;
 }
 
 // --- ループ ---
@@ -180,7 +222,7 @@ function frame(now) {
       // step の中で終わりへ遷移しうるので、状態ではなくイベントで見る
       for (const e of events) {
         if ((e.type === 'crash' || e.type === 'clear') && e.newBest) writeValue(KEY.best, state.best);
-        if (e.type === 'clear') onClear(state);
+        if (e.type === 'crash' || e.type === 'clear') showResult(state);
       }
     } else {
       // タイトル / ゲームオーバー / クリアでも演出タイマーだけは進める
