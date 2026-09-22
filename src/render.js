@@ -1,0 +1,227 @@
+/**
+ * チャージ・ラン Web 版 — 描画。
+ *
+ * 実機 (cardputer-chargerun/src/main.cpp) の drawScene / drawOverlay の移植に、
+ * 目標スコアまでの進捗バーとクリア画面を足したもの。240x135 の実寸座標で描き、
+ * 拡大は呼ぶ側 (CSS の image-rendering: pixelated) に任せる。
+ */
+import {
+  BAND_BOTTOM,
+  BAND_TOP,
+  GAUGE_MAX,
+  GROUND_Y,
+  PLAYER_H,
+  PLAYER_W,
+  PLAYER_X,
+  SCREEN_H,
+  SCREEN_W,
+} from './core.js';
+
+const COL = {
+  bandOn: '#3cd2eb',
+  bandOff: '#163e4e',
+  ground: '#78787f',
+  player: '#fae878',
+  pillar: '#5ac86e',
+  drone: '#f05a50',
+  text: '#ebebf0',
+  gaugeOff: '#1c1c22',
+  gaugeHot: '#78f5ff',
+  clear: '#fff05a',
+};
+
+/** 無敵中に使う派手な色。位相で 3 色を回す。 */
+function rushColor(s, shift) {
+  const phase = (Math.floor(s.animMs / 70) + shift) % 3;
+  if (phase === 0) return '#fff05a';
+  if (phase === 1) return '#ff6ec8';
+  return '#6ef0ff';
+}
+
+const MONO = 'ui-monospace, Menlo, Consolas, monospace';
+
+/** ms を「48.3」形式の秒へ。 */
+export function formatSec(ms) {
+  return (ms / 1000).toFixed(1);
+}
+
+function drawScene(ctx, s, clearScore) {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+  // --- 充電帯: 3 層に塗り分け、上の層ほど明るい ---
+  // 溜まりが速い高さを色で示す。数値を読ませずに「上へ行くほど得だが危ない」を伝える
+  const bandH = BAND_BOTTOM - BAND_TOP;
+  for (let layer = 0; layer < 3; layer += 1) {
+    const ly = BAND_TOP + Math.floor((bandH * layer) / 3);
+    const lh = BAND_TOP + Math.floor((bandH * (layer + 1)) / 3) - ly;
+    const lv = 3 - layer;
+    ctx.fillStyle = s.charging
+      ? `rgb(${6 * lv},${20 * lv},${25 * lv})`
+      : `rgb(${2 * lv},${7 * lv},${9 * lv})`;
+    ctx.fillRect(0, ly, SCREEN_W, lh);
+  }
+  const bandCol = s.invincible ? rushColor(s, 0) : s.charging ? COL.bandOn : COL.bandOff;
+  ctx.fillStyle = bandCol;
+  ctx.fillRect(0, BAND_TOP, SCREEN_W, 1);
+  ctx.fillRect(0, BAND_BOTTOM, SCREEN_W, 1);
+  for (let x = -s.scroll; x < SCREEN_W; x += 24) {
+    ctx.fillRect(x, (BAND_TOP + BAND_BOTTOM) / 2, 8, 1);
+  }
+
+  // --- 地面 ---
+  ctx.fillStyle = COL.ground;
+  ctx.fillRect(0, GROUND_Y, SCREEN_W, 1);
+  for (let gx = -s.scroll; gx < SCREEN_W; gx += 24) {
+    ctx.fillRect(gx + 6, GROUND_Y + 5, 1, 1);
+    ctx.fillRect(gx + 15, GROUND_Y + 9, 1, 1);
+  }
+
+  // --- 障害物 ---
+  for (const o of s.obstacles) {
+    ctx.fillStyle = o.air ? COL.drone : COL.pillar;
+    ctx.fillRect(Math.round(o.x), o.y, o.w, o.h);
+    // ローター (飛来物だと一目で分かるように上へ線を出す)
+    if (o.air) ctx.fillRect(Math.round(o.x) - 2, o.y - 2, o.w + 4, 1);
+  }
+
+  // --- 破壊エフェクト ---
+  s.bursts.forEach((b, i) => {
+    const r = 3 + Math.floor((180 - b.ms) / 22);
+    ctx.fillStyle = rushColor(s, i);
+    ctx.fillRect(b.x - r, b.y, r * 2, 1);
+    ctx.fillRect(b.x, b.y - r, 1, r * 2);
+  });
+
+  // --- 自機 ---
+  let py = Math.round(s.playerY);
+  // 地上では 1px だけ上下させ、走っているように見せる
+  if (s.onGround && s.phase === 'playing' && Math.floor(s.animMs / 90) % 2 === 0) py -= 1;
+
+  if (s.charging && !s.invincible) {
+    // 帯から自機へ電気が流れているように、点を動かしながら描く
+    ctx.fillStyle = COL.bandOn;
+    const phase = Math.floor(s.animMs / 30) % 4;
+    for (let y = BAND_TOP + phase; y < py; y += 4) {
+      ctx.fillRect(PLAYER_X + PLAYER_W / 2, y, 1, 1);
+    }
+  }
+  if (s.invincible) {
+    ctx.strokeStyle = rushColor(s, 1);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PLAYER_X - 2.5, py - 2.5, PLAYER_W + 5, PLAYER_H + 5);
+  }
+  ctx.fillStyle = s.invincible ? rushColor(s, 0) : COL.player;
+  ctx.fillRect(PLAYER_X, py, PLAYER_W, PLAYER_H);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(PLAYER_X + PLAYER_W - 3, py + 3, 1, 1);
+
+  // --- HUD: ゲージは数字でなく左端の縦棒で出す (実機の UI 案 C) ---
+  ctx.font = `8px ${MONO}`;
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = COL.text;
+  ctx.fillText(`SCORE ${s.score}`, 14, 3);
+  ctx.fillText(`GOAL ${clearScore}`, SCREEN_W - 62, 3);
+
+  // 目標点までの進捗バー (Web 版で追加)。スコアの横に細く引き、読まずに残りが分かるようにする
+  const barX = 14;
+  const barW = SCREEN_W - 14 - 8;
+  const ratio = Math.min(1, s.score / clearScore);
+  ctx.fillStyle = COL.gaugeOff;
+  ctx.fillRect(barX, 13, barW, 2);
+  ctx.fillStyle = s.phase === 'clear' ? COL.clear : s.invincible ? rushColor(s, 2) : COL.bandOn;
+  ctx.fillRect(barX, 13, Math.round(barW * ratio), 2);
+
+  const lit = Math.ceil(s.gauge - 0.001);
+  for (let i = 0; i < GAUGE_MAX; i += 1) {
+    const on = GAUGE_MAX - i <= lit;
+    let c = COL.gaugeOff;
+    if (on) {
+      if (s.invincible) c = rushColor(s, i);
+      else if (s.flashMs > 0) c = '#ffffff';
+      else if (!s.charging) c = COL.ground;
+      else c = s.chargeRate > 1.1 ? COL.gaugeHot : COL.bandOn;
+    }
+    ctx.fillStyle = c;
+    ctx.fillRect(3, 18 + i * 9, 6, 6);
+  }
+}
+
+/** 枠付きの小窓を描く。 */
+function panel(ctx, x, y, w, h, accent) {
+  ctx.fillStyle = '#0a0a0e';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+}
+
+/** 文字列を横中央に置く。 */
+function center(ctx, text, y) {
+  const w = ctx.measureText(text).width;
+  ctx.fillText(text, Math.round((SCREEN_W - w) / 2), y);
+}
+
+function drawOverlay(ctx, s, clearScore, bestClearMs) {
+  if (s.phase === 'title') {
+    panel(ctx, 20, 38, SCREEN_W - 40, 60, COL.bandOn);
+    ctx.fillStyle = COL.bandOn;
+    ctx.font = `bold 16px ${MONO}`;
+    center(ctx, 'CHARGE RUN', 44);
+    ctx.font = `8px ${MONO}`;
+    ctx.fillStyle = '#c8c8d2';
+    center(ctx, 'tap: small jump / hold: big jump', 64);
+    center(ctx, `reach ${clearScore} pts to CLEAR`, 75);
+    ctx.fillStyle = COL.bandOn;
+    center(ctx, 'press any key / tap to start', 86);
+  } else if (s.phase === 'over') {
+    // ベストを更新した回は、失敗より先に更新を伝える
+    const accent = s.newBest ? COL.bandOn : COL.drone;
+    panel(ctx, 30, 44, SCREEN_W - 60, 48, accent);
+    ctx.fillStyle = accent;
+    ctx.font = `bold 16px ${MONO}`;
+    center(ctx, s.newBest ? 'NEW BEST' : 'CRASH', 50);
+    ctx.font = `8px ${MONO}`;
+    ctx.fillStyle = '#dcdce4';
+    center(ctx, `SCORE ${s.score} / ${clearScore}   BEST ${s.best}`, 72);
+    center(ctx, 'any key to retry', 83);
+  } else if (s.phase === 'clear') {
+    const accent = rushColor(s, 0);
+    panel(ctx, 24, 32, SCREEN_W - 48, 66, accent);
+    ctx.fillStyle = accent;
+    ctx.font = `bold 16px ${MONO}`;
+    center(ctx, 'CLEAR!', 38);
+    ctx.font = `8px ${MONO}`;
+    ctx.fillStyle = '#dcdce4';
+    center(ctx, `TIME ${formatSec(s.clearMs)}s   RUSH x${s.rushCount}`, 58);
+    // bestClearMs は呼ぶ側がこの回の結果を反映済みで渡す。同値なら今回が最速
+    const isBest = s.clearMs === bestClearMs;
+    ctx.fillStyle = isBest ? COL.clear : '#a0a0aa';
+    center(ctx, isBest ? 'BEST TIME!' : `BEST ${formatSec(bestClearMs)}s`, 69);
+    ctx.fillStyle = COL.bandOn;
+    center(ctx, 'post to X below / key to retry', 84);
+  }
+}
+
+/**
+ * 1 フレーム描く。被弾直後の画面揺れもここで面倒を見る。
+ * 揺らす前に全面を黒で塗り、ずらしてできる隙間に前フレームを残さない。
+ */
+export function render(ctx, s, { clearScore, bestClearMs = 0 }) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  ctx.save();
+  if (s.shakeMs > 0) {
+    const amp = 1 + Math.floor(s.shakeMs / 120);
+    ctx.translate(
+      Math.round((Math.random() * 2 - 1) * amp),
+      Math.round((Math.random() * 2 - 1) * amp),
+    );
+  }
+  drawScene(ctx, s, clearScore);
+  drawOverlay(ctx, s, clearScore, bestClearMs);
+  ctx.restore();
+}
+
+export { SCREEN_W, SCREEN_H };
