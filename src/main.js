@@ -19,7 +19,9 @@ import { SO_CLOSE_RATIO, formatSec, overHeadline, render } from './render.js';
 const FRAME_MS = 16;
 /** ポストに載せる URL。ローカルで試したときも公開 URL を載せる。 */
 const SITE_URL = 'https://cosara22.github.io/chargerun/';
-const HASHTAG = 'チャージラン';
+/** ポストの最終行に並べるハッシュタグ。 */
+const HASHTAGS = ['チャージラン', '生成AIなんでも展示会'];
+const TAG_LINE = HASHTAGS.map((t) => `#${t}`).join(' ');
 const KEY = { best: 'chargerun.best', bestClear: 'chargerun.bestClearMs', muted: 'chargerun.muted' };
 
 // 目標点の上書き (?goal=N) はローカルでの動作確認専用。公開先で効くとクリアを偽れるため
@@ -152,7 +154,7 @@ function clearLines(s) {
     `チャージ・ランで ${goal}点到達 ${formatSec(s.clearMs)}秒！` + (isBest ? '(自己ベスト)' : ''),
     `RUSH ${s.rushCount}回 / スコア ${s.score}`,
     `あなたは何秒で届く？`,
-    `#${HASHTAG}`,
+    TAG_LINE,
   ];
 }
 
@@ -174,7 +176,7 @@ function overLines(s) {
     head,
     `${formatSec(s.runMs)}秒 走って RUSH ${s.rushCount}回` + (close ? ` / ゴールまであと${rest}点` : ''),
     `ゴールは${goal}点。あなたは届く？`,
-    `#${HASHTAG}`,
+    TAG_LINE,
   ];
 }
 

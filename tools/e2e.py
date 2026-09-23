@@ -107,7 +107,7 @@ with sync_playwright() as p:
         check("リンク先が x.com/intent/post", u.netloc == "x.com" and u.path == "/intent/post", href[:80])
         check("本文に到達タイムと挑戦の一文",
               f"60点到達 {st['clearMs'] / 1000:.1f}秒" in text and "何秒で届く" in text, text.replace("\n", " / "))
-        check("本文にハッシュタグ", "#チャージラン" in text)
+        check("本文にハッシュタグ 2 つ", "#チャージラン #生成AIなんでも展示会" in text)
         check("url パラメータが公開 URL", q.get("url", [""])[0] == "https://cosara22.github.io/chargerun/")
         check("新しいタブで開く", page.locator("#post-x").get_attribute("target") == "_blank")
         check("クリア画面の要約に自己ベスト表記", "自己ベスト" in page.locator("#result-summary").inner_text())
@@ -150,7 +150,7 @@ with sync_playwright() as p:
     text = urllib.parse.parse_qs(urllib.parse.urlparse(href).query).get("text", [""])[0]
     check("ミスのポスト本文に走った秒数と挑戦の一文", "秒 走って" in text and "あなたは届く？" in text,
           text.replace("\n", " / "))
-    check("ミスのポスト本文にハッシュタグ", "#チャージラン" in text)
+    check("ミスのポスト本文にハッシュタグ 2 つ", "#チャージラン #生成AIなんでも展示会" in text)
     page.wait_for_timeout(400)
     page.keyboard.press("Space")
     page.wait_for_timeout(100)
